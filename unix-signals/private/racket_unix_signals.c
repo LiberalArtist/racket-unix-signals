@@ -13,6 +13,9 @@
 /* This implementation uses djb's "self-pipe trick".
  * See http://cr.yp.to/docs/selfpipe.html. */
 
+/* TODO: Communicate errno to Racket rather than using `perror`.
+ * See Racket's `saved-errno` and `lookup-errno`. */
+
 static int self_pipe_initialized = 0;
 static int self_pipe_read_end = -1;
 static int self_pipe_write_end = -1;
