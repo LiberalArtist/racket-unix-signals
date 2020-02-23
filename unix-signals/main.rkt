@@ -3,6 +3,7 @@
 (require ffi/unsafe
          ffi/unsafe/port
          ffi/unsafe/define
+         racket/port
          (rename-in racket/contract
                     [-> ->/c])
          (only-in racket/os getpid))
@@ -76,21 +77,26 @@
   (let ()
     (define-unix prim_get_signal_fd
       (_fun -> _int))
-    (define signal-fd
+    (define signal-fd-in
       ;; NB: closing this port closes the file descriptor
       ;; (that was already true with scheme_make_fd_input_port)
       (unsafe-file-descriptor->port (prim_get_signal_fd)
                                     'signal-fd
                                     '(read)))
+    (define (assert-not-eof who v)
+      (if (eof-object? v)
+          (raise (exn:fail:read:eof
+                  (format "~a: internal error;\n unexpected eof" who)
+                  (current-continuation-marks)
+                  null))
+          v))
     (define (read-signal)
-      (read-byte signal-fd))
+      (assert-not-eof 'read-signal (read-byte signal-fd-in)))
     (values read-signal
-            (wrap-evt signal-fd
-                      (λ (__)
-                        ;; NB: NOT handle-evt because we want breaks disabled here
-                        ;; (But does that protect us enough from blocking here,
-                        ;; given that read-signal is exported?)
-                        (read-signal))))))
+            (wrap-evt (read-bytes-evt 1 signal-fd-in)
+                      (λ (bs)
+                        (assert-not-eof 'next-signal-evt bs)
+                        (bytes-ref bs 0))))))
 
 (define name->signum
   (case-lambda
